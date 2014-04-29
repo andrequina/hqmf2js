@@ -1,0 +1,5 @@
+  var events = <%= criteria.derivation_operator %>(
+    <%- criteria.children_criteria.each_with_index do |child, index| -%>
+    <%= "hqmfjs.#{child}(patient, initialSpecificContext)" %><%= "," if index<criteria.children_criteria.length-1 %>
+    <%- end -%>
+  );

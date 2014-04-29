@@ -1,0 +1,25 @@
+<%- eventType = patient_api_method(criteria) -%>
+<%- valueSetId = criteria.code_list_id -%>
+<%- valueSet = criteria.inline_code_list ? js_for_code_list(criteria) : nil -%>
+<%- negationValueSetId = criteria.negation_code_list_id -%>
+<%- statuses = criteria.status ? "[\"#{criteria.status}\"]" : nil -%>
+<%- includeEventsWithoutStatus = criteria.hard_status ? false : true -%>
+<%- start = nil -%>
+<%- stop = nil -%>
+<%- if criteria.effective_time -%>
+  <%- startExp = js_for_value(criteria.effective_time.low) -%>
+  <%- start = startExp+'.asDate()' if startExp != 'null' -%>
+  <%- stopExp = js_for_value(criteria.effective_time.high) -%>
+  <%- stop = stopExp+'.asDate()' if stopExp != 'null' -%>
+<%- end -%>
+  var eventCriteria = {"type": "<%= eventType %>"<%- -%>
+<%= ", \"statuses\": #{statuses}" if statuses %> <%- -%>
+<%= ", \"includeEventsWithoutStatus\": #{includeEventsWithoutStatus}" if includeEventsWithoutStatus %> <%- -%>
+<%= ", \"negated\": #{criteria.negation}" if criteria.negation %> <%- -%>
+<%= ", \"negationValueSetId\": \"#{negationValueSetId}\"" if criteria.negation && negationValueSetId %> <%- -%>
+<%= ", \"valueSetId\": \"#{valueSetId}\"" if valueSetId %> <%- -%>
+<%= ", \"valueSet\": #{valueSet}" if valueSet %> <%- -%>
+<%= ", \"start\": #{start}" if start %> <%- -%>
+<%= ", \"stop\": #{stop}" if stop %> <%- -%>
+<%= ", \"specificOccurrence\": \"#{criteria.source_data_criteria}\"" if criteria.specific_occurrence %>};
+  var events = patient.getEvents(eventCriteria);

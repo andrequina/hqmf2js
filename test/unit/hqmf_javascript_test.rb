@@ -1,184 +1,194 @@
 require_relative '../test_helper'
+require 'hquery-patient-api'
 
 class HqmfJavascriptTest < Test::Unit::TestCase
   def setup
     # Open a path to all of our fixtures
     hqmf_contents = File.open("test/fixtures/NQF59New.xml").read
-    codes_file_path = File.expand_path("../../fixtures/codes.xml", __FILE__)
-    # This patient is identified from Cypress as in the denominator and numerator for NQF59
-    numerator_patient_json = File.read('test/fixtures/patients/larry_vanderman.json')
+    
+    doc = HQMF::Parser.parse(hqmf_contents, HQMF::Parser::HQMF_VERSION_2)
+    
+    codes_file_path = File.expand_path("../../fixtures/codes/codes.xml", __FILE__)
     
     # First compile the CoffeeScript that enables our converted HQMF JavaScript
-    ctx = Sprockets::Environment.new(File.expand_path("../../..", __FILE__))
-    Tilt::CoffeeScriptTemplate.default_bare = true 
-    ctx.append_path "app/assets/javascripts"
-    hqmf_utils = HqmfUtility.hqmf_utility_javascript.to_s
+    hqmf_utils = compile_coffee_script
     
     # Parse the code systems that are mapped to the OIDs we support
-    codes = Generator::CodesToJson.new(codes_file_path)
-    codes_json = codes.json
+    @codes_hash = HQMF2JS::Generator::CodesToJson.from_xml(codes_file_path)
+    codes_json = HQMF2JS::Generator::CodesToJson.hash_to_js(@codes_hash)
     
     # Convert the HQMF document included as a fixture into JavaScript
-    converter = Generator::JS.new(hqmf_contents)
-    converted_hqmf = "#{converter.js_for_data_criteria}
-                      #{converter.js_for('IPP')}
-                      #{converter.js_for('DENOM')}
-                      #{converter.js_for('NUMER')}
-                      #{converter.js_for('DENEXCEP')}
-                      #{converter.js_for('DUMMY')}"
-    
-    # Now we can wrap and compile all of our code as one little JavaScript context for all of the tests below
-    patient_api = File.open('test/fixtures/patient_api.js').read
-    fixture_json = File.read('test/fixtures/patients/larry_vanderman.json')
-    initialize_patient = 'var numeratorPatient = new hQuery.Patient(larry);'
-    @context = ExecJS.compile("#{hqmf_utils}
-                              var OidDictionary = #{codes_json};
-                              #{converted_hqmf}
-                              #{patient_api}
-                              var larry = #{fixture_json};
-                              #{initialize_patient}")
+    @converter = HQMF2JS::Generator::JS.new(doc)
+    converted_hqmf = "#{@converter.js_for_data_criteria}
+      #{@converter.js_for('IPP')}
+      #{@converter.js_for('DENOM')}
+      #{@converter.js_for('NUMER')}
+      #{@converter.js_for('DENEXCEP')}
+      #{@converter.js_for('DUMMY')}"
+
+    initialize_javascript_context(hqmf_utils, codes_json, converted_hqmf)
   end
   
   def test_codes
     # Make sure we're recalling entries correctly
-    assert_equal 1, @context.eval('OidDictionary["2.16.840.1.113883.3.464.1.14"]').size
-    assert_equal "00110", @context.eval('OidDictionary["2.16.840.1.113883.3.464.1.14"]["HL7"]').first
+    assert_equal 1, @context.eval('OidDictionary["2.16.840.1.113883.3.464.1.14"]').count
+    assert_equal "00110", @context.eval('OidDictionary["2.16.840.1.113883.3.464.1.14"]["HL7"][0]')
     
     # OIDs that are matched to multiple code systems should also work correctly
     # The list of supported OIDs will eventually be long, so this won't be an exhaustive test, just want to be sure the functionality is right
-    assert_equal 3, @context.eval('OidDictionary["2.16.840.1.113883.3.464.1.72"]').size
-    assert_equal 2, @context.eval('OidDictionary["2.16.840.1.113883.3.464.1.72"]["CPT"]').size
-    assert_equal 3, @context.eval('OidDictionary["2.16.840.1.113883.3.464.1.72"]["LOINC"]').size
-    assert_equal 9, @context.eval('OidDictionary["2.16.840.1.113883.3.464.1.72"]["SNOMED-CT"]').size
+    assert_equal 3, @context.eval('OidDictionary["2.16.840.1.113883.3.464.1.72"]').count
+    assert_equal 2, @context.eval('OidDictionary["2.16.840.1.113883.3.464.1.72"]["CPT"]').count
+    assert_equal 3, @context.eval('OidDictionary["2.16.840.1.113883.3.464.1.72"]["LOINC"]').count
+    assert_equal 9, @context.eval('OidDictionary["2.16.840.1.113883.3.464.1.72"]["SNOMED-CT"]').count
+  end
+  
+  def test_to_js_method
+    value = @converter.to_js(0,@codes_hash)
+    local_context = V8::Context.new
+    hqmf_utils = HQMF2JS::Generator::JS.library_functions
+    local_context.eval("#{hqmf_utils}
+                        #{value}")
+                        
+    local_context.eval('typeof hqmfjs != undefined').must_equal true
+    local_context.eval('typeof OidDictionary != undefined').must_equal true
+    local_context.eval('typeof hqmfjs.IPP != undefined').must_equal true
+    local_context.eval('typeof hqmfjs.NUMER != undefined').must_equal true
+    local_context.eval('typeof hqmfjs.DENOM != undefined').must_equal true
+  end
+
+  def test_to_js_method_without_codes
+    value = @converter.to_js(0,nil)
+    assert !value.match(/<%= oid_dictionary %>/).nil?
   end
   
   def test_converted_hqmf
+    # Unspecified time bounds should be nil
+    assert_equal nil, @context.eval("numeratorPatient.encounters()[0].asIVL_TS().low.asDate()")
+    assert_equal 2010, @context.eval("numeratorPatient.encounters()[0].asIVL_TS().high.asDate().getUTCFullYear()")
+
     # Measure variables
-    assert_equal 2011, @context.eval("MeasurePeriod.low.asDate().getFullYear()")
-    assert_equal 0, @context.eval("MeasurePeriod.low.asDate().getMonth()")
-    assert_equal 2011, @context.eval("MeasurePeriod.high.asDate().getFullYear()")
-    assert_equal 11, @context.eval("MeasurePeriod.high.asDate().getMonth()")
-    assert_equal 1, @context.eval("MeasurePeriod.width.value")
-    assert_equal 'a', @context.eval("MeasurePeriod.width.unit")
+    assert_equal 2011, @context.eval("MeasurePeriod.low.asDate().getUTCFullYear()")
+    assert_equal 0, @context.eval("MeasurePeriod.low.asDate().getUTCMonth()")
+    assert_equal 2011, @context.eval("MeasurePeriod.high.asDate().getUTCFullYear()")
+    assert_equal 11, @context.eval("MeasurePeriod.high.asDate().getUTCMonth()")
+    assert_equal 2011, @context.eval("hqmfjs.MeasurePeriod()[0].asIVL_TS().low.asDate().getUTCFullYear()")
+    assert_equal 0, @context.eval("hqmfjs.MeasurePeriod()[0].asIVL_TS().low.asDate().getUTCMonth()")
+    assert_equal 2011, @context.eval("hqmfjs.MeasurePeriod()[0].asIVL_TS().high.asDate().getUTCFullYear()")
+    assert_equal 11, @context.eval("hqmfjs.MeasurePeriod()[0].asIVL_TS().high.asDate().getUTCMonth()")
   
     # Age functions - Fixture is 37.1
-    assert @context.eval("ageBetween17and64(numeratorPatient)")
-    assert @context.eval("ageBetween30and39(numeratorPatient)")
-    assert !@context.eval("ageBetween17and21(numeratorPatient)")
-    assert !@context.eval("ageBetween22and29(numeratorPatient)")
-    assert !@context.eval("ageBetween40and49(numeratorPatient)")
-    assert !@context.eval("ageBetween50and59(numeratorPatient)")
-    assert !@context.eval("ageBetween60and64(numeratorPatient)")
+    assert @context.eval("hqmfjs.ageBetween17and64(numeratorPatient).isTrue()")
+    assert @context.eval("hqmfjs.ageBetween30and39(numeratorPatient).isTrue()")
+    assert !@context.eval("hqmfjs.ageBetween17and21(numeratorPatient).isTrue()")
+    assert !@context.eval("hqmfjs.ageBetween22and29(numeratorPatient).isTrue()")
+    assert !@context.eval("hqmfjs.ageBetween40and49(numeratorPatient).isTrue()")
+    assert !@context.eval("hqmfjs.ageBetween50and59(numeratorPatient).isTrue()")
+    assert !@context.eval("hqmfjs.ageBetween60and64(numeratorPatient).isTrue()")
     
+    # Birthdate function
+    assert_equal 1, @context.eval("hqmfjs.birthdateThirtyYearsBeforeMeasurementPeriod(numeratorPatient)").count
+    assert_equal 0, @context.eval("hqmfjs.birthdateFiftyYearsBeforeMeasurementPeriod(numeratorPatient)").count
+
     # Gender functions - Fixture is male
-    assert @context.eval("genderMale(numeratorPatient)")
-    assert !@context.eval("genderFemale(numeratorPatient)")
+    assert @context.eval("hqmfjs.genderMale(numeratorPatient).isTrue()")
+    assert !@context.eval("hqmfjs.genderFemale(numeratorPatient).isTrue()")
     
     # Be sure the actual mechanic of code lists being returned works correctly - Using HasDiabetes as an example
-    results = @context.eval("HasDiabetes(numeratorPatient)").first['json']
-    assert_equal 3, results['codes'].size
+    results = @context.eval("hqmfjs.HasDiabetes(numeratorPatient)[0]")['json']
+    assert_equal 3, results['codes'].count
     assert_equal '250', results['codes']['ICD-9-CM'].first
     assert_equal 1270094400, results['time']
     
     # Encounters
-    assert @context.eval("EDorInpatientEncounter(numeratorPatient)").empty?
-    assert @context.eval("AmbulatoryEncounter(numeratorPatient)").empty?
+    assert_equal 0, @context.eval("hqmfjs.EDorInpatientEncounter(numeratorPatient).length")
+    assert_equal 0, @context.eval("hqmfjs.AmbulatoryEncounter(numeratorPatient).length")
     
     # Conditions
-    assert !@context.eval("HasDiabetes(numeratorPatient)").empty?
-    assert @context.eval("HasGestationalDiabetes(numeratorPatient)").empty?
-    assert @context.eval("HasPolycysticOvaries(numeratorPatient)").empty?
-    assert @context.eval("HasSteroidInducedDiabetes(numeratorPatient)").empty?
+    assert_equal 1, @context.eval("hqmfjs.HasDiabetes(numeratorPatient).length")
+    assert_equal 0, @context.eval("hqmfjs.HasGestationalDiabetes(numeratorPatient).length")
+    assert_equal 0, @context.eval("hqmfjs.HasPolycysticOvaries(numeratorPatient).length")
+    assert_equal 0, @context.eval("hqmfjs.HasSteroidInducedDiabetes(numeratorPatient).length")
     
     # Results
-    assert !@context.eval("HbA1C(numeratorPatient)").empty?
+    assert_equal 2, @context.eval("hqmfjs.HbA1C(numeratorPatient).length")
     
     # Medications
-    assert !@context.eval("DiabetesMedAdministered(numeratorPatient)").empty?
-    assert @context.eval("DiabetesMedIntended(numeratorPatient)").empty?
-    assert @context.eval("DiabetesMedSupplied(numeratorPatient)").empty?
-    assert @context.eval("DiabetesMedOrdered(numeratorPatient)").empty?
+    assert_equal 1, @context.eval("hqmfjs.DiabetesMedAdministered(numeratorPatient).length")
+    assert_equal 0, @context.eval("hqmfjs.DiabetesMedIntended(numeratorPatient).length")
+    assert_equal 0, @context.eval("hqmfjs.DiabetesMedSupplied(numeratorPatient).length")
+    assert_equal 0, @context.eval("hqmfjs.DiabetesMedOrdered(numeratorPatient).length")
     
     # Standard population health query buckets
-    assert @context.eval("IPP(numeratorPatient)")
-    assert @context.eval("DENOM(numeratorPatient)")
-    assert @context.eval("NUMER(numeratorPatient)")
-    assert !@context.eval("DENEXCEP(numeratorPatient)")
+    assert @context.eval("hqmfjs.IPP(numeratorPatient).isTrue()")
+    assert @context.eval("hqmfjs.DENOM(numeratorPatient).isTrue()")
+    assert @context.eval("hqmfjs.NUMER(numeratorPatient).isTrue()")
+    assert !@context.eval("hqmfjs.DENEXCEP(numeratorPatient).isTrue()")
+    
+    # COUNTing
+    assert @context.eval("hqmfjs.moreThanTwoHbA1CTests(numeratorPatient).isTrue()")
+    assert !@context.eval("hqmfjs.moreThanFourHbA1CTests(numeratorPatient).isTrue()")
+
+    # UNIONing
+    assert_equal 1, @context.eval("hqmfjs.anyDiabetes(numeratorPatient).length")
+
+    # XPRODUCTing
+    assert_equal 1, @context.eval("hqmfjs.allDiabetes(numeratorPatient).length")
   end
   
+  def test_cached_access
+    eventCriteria = '{"type": "results", "statuses": [], "includeEventsWithoutStatus": true, "negated": false, "valueSet": getCodes("2.16.840.1.113883.3.464.1.72")}'
+    assert_equal 3, @context.eval("numeratorPatient.getEvents(#{eventCriteria}).length")
+  end
+  
+  def test_measure_with_observ
+    measure = HQMF::Document.from_json(JSON.parse(File.read(File.join('test','fixtures','json','0495.json'))))
+    c = HQMF2JS::Generator::JS.new(measure)
+    result = c.js_for('OBSERV',HQMF::PopulationCriteria::OBSERV)
+    assert !result.match(/hqmfjs.OBSERV = function/).nil?
+  end
+
   def test_converted_utils
-    # PQ - Value unit pair
-    pq = "new PQ(1, 'mo')"
-    assert_equal 1, @context.eval("#{pq}.value")
-    assert_equal "mo", @context.eval("#{pq}.unit")
-    assert @context.eval("#{pq}.lessThan(3)")
-    assert @context.eval("#{pq}.greaterThan(0)")
-    assert @context.eval("#{pq}.match(1)")
-    
-    # TS - Timestamp 2010-01-01
-    assert_equal 2010, @context.eval("StartDate.asDate().getFullYear()")
-    assert_equal 0, @context.eval("StartDate.asDate().getMonth()")
-    assert_equal 1, @context.eval("StartDate.asDate().getDate()")
-    assert_equal 2011, @context.eval("StartDate.add(new PQ(1, 'a')).asDate().getFullYear()")
-    assert_equal 11, @context.eval("StartDate.add(new PQ(-1, 'mo')).asDate().getMonth()")
-    assert_equal 2, @context.eval("StartDate.add(new PQ(1, 'd')).asDate().getDate()")
-    assert_equal 1, @context.eval("StartDate.add(new PQ(1, 'h')).asDate().getHours()")
-    assert_equal 5, @context.eval("StartDate.add(new PQ(5, 'min')).asDate().getMinutes()")
-    
-    # CD - Code
-    cd = "new CD('M')"
-    assert_equal 'M', @context.eval("#{cd}.code")
-    assert @context.eval("#{cd}.match('M')")
-    assert !@context.eval("#{cd}.match('F')")
-    
-    # IVL - Range
-    ivl = "new IVL(new PQ(1, 'mo'), new PQ(10, 'mo'))"
-    assert_equal 1, @context.eval("#{ivl}.low_pq.value")
-    assert_equal 10, @context.eval("#{ivl}.high_pq.value")
-    assert @context.eval("#{ivl}.match(5)")
-    assert !@context.eval("#{ivl}.match(0)")
-    assert !@context.eval("#{ivl}.match(11)")
-    # IVL with null values on the ends
-    assert @context.eval("new IVL(null, new PQ(10, 'mo')).match(5)")
-    assert !@context.eval("new IVL(null, new PQ(10, 'mo')).match(11)")
-    assert @context.eval("new IVL(new PQ(1, 'mo'), null).match(2)")
-    assert !@context.eval("new IVL(new PQ(1, 'mo'), null).match(0)")
-    
-    # atLeastOneTrue
-    assert !@context.eval("atLeastOneTrue()")
-    assert !@context.eval("atLeastOneTrue(false, false, false)")
-    assert @context.eval("atLeastOneTrue(false, true, false)")
-    
-    # All true
-    assert !@context.eval("allTrue()")
-    assert !@context.eval("allTrue(true, true, false)")
-    assert @context.eval("allTrue(true, true, true)")
-    
-    # Matching value
-    assert @context.eval("matchingValue(5, new IVL(PQ(3, 'mo'), new PQ(9, 'mo')))")
-    assert !@context.eval("matchingValue(12, new IVL(PQ(3, 'mo'), new PQ(9, 'mo')))")
-    
     # Filter events by value - HbA1C as an example
     events = 'numeratorPatient.results().match(getCodes("2.16.840.1.113883.3.464.1.72"))'
-    assert_equal 2, @context.eval("filterEventsByValue(#{events}, new IVL(new PQ(9, '%'), null))").size
-    assert @context.eval("filterEventsByValue(#{events}, new IVL(new PQ(10, '%'), null))").empty?
-    
-    # PREVSUM
-    # TODO - Not sure what this is supposed to do. Currently does nothing.
-    
-    # RECENT - HbA1C as an example
-    events = 'numeratorPatient.results().match(getCodes("2.16.840.1.113883.3.464.1.72"))'
-    assert_equal 1, @context.eval("RECENT(#{events})").size
-    assert_equal 1285992000, @context.eval("RECENT(#{events})").first[1]['time']
+    assert_equal 2, @context.eval("filterEventsByValue(#{events}, new IVL_PQ(new PQ(9, '%'), null))").count
+    assert_equal 0, @context.eval("filterEventsByValue(#{events}, new IVL_PQ(new PQ(10, '%'), null))").count
     
     # getCode
-    assert_equal 1, @context.eval('getCodes("2.16.840.1.113883.3.464.1.14")').size
-    assert_equal "00110", @context.eval('getCodes("2.16.840.1.113883.3.464.1.14")["HL7"]').first
+    assert_equal 1, @context.eval('getCodes("2.16.840.1.113883.3.464.1.14")').count
+    assert_equal "00110", @context.eval('getCodes("2.16.840.1.113883.3.464.1.14")["HL7"][0]')
+    
+    # adjustBoundsForField 
+    @context.eval('var procedures = numeratorPatient.procedures()')
+    assert_equal 7, @context.eval('procedures.length')
+    assert_equal 2010, @context.eval('procedures[0].timeStamp().getFullYear()')
+    assert_equal true, @context.eval('procedures[0].includesCodeFrom({"SNOMED-CT": ["401191002"]})')
+    @context.eval('var updatedProcedures = adjustBoundsForField(procedures, "incisionTime")')
+    assert_equal 1, @context.eval('updatedProcedures.length')
+    assert_equal 2005, @context.eval('updatedProcedures[0].timeStamp().getFullYear()')
+    assert_equal true, @context.eval('updatedProcedures[0].includesCodeFrom({"SNOMED-CT": ["401191002"]})')
+    
+    # denormalizeEventsByLocation
+    @context.eval('var normalizedEncounters = denormalizeEventsByLocation(numeratorPatient.encounters(), "facilityArrival")')
+    assert_equal 1, @context.eval('normalizedEncounters.length')
+    assert_equal 10, @context.eval('normalizedEncounters[0].startDate().getUTCMonth()')
+    assert_equal 19, @context.eval('normalizedEncounters[0].startDate().getUTCDate()')
+    assert_equal 10, @context.eval('normalizedEncounters[0].endDate().getUTCMonth()')
+    assert_equal 19, @context.eval('normalizedEncounters[0].endDate().getUTCDate()')
+    assert_equal 'bar', @context.eval('normalizedEncounters[0].facility().code()')
+    assert_equal 'SNOMED-CT', @context.eval('normalizedEncounters[0].facility().codeSystemName()')
+    @context.eval('normalizedEncounters = denormalizeEventsByLocation(numeratorPatient.encounters(), "facilityDeparture")')
+    assert_equal 1, @context.eval('normalizedEncounters.length')
+    assert_equal 11, @context.eval('normalizedEncounters[0].startDate().getUTCMonth()')
+    assert_equal 1, @context.eval('normalizedEncounters[0].startDate().getUTCDate()')
+    assert_equal 11, @context.eval('normalizedEncounters[0].endDate().getUTCMonth()')
+    assert_equal 1, @context.eval('normalizedEncounters[0].endDate().getUTCDate()')
   end
   
   def test_map_reduce_generation
     hqmf_contents = File.open("test/fixtures/NQF59New.xml").read
-    map_reduce = HQMF2JS::Converter.generate_map_reduce(hqmf_contents)
+    doc = HQMF::Parser.parse(hqmf_contents, HQMF::Parser::HQMF_VERSION_2)
+    
+    map_reduce = HQMF2JS::Converter.generate_map_reduce(doc)
     
     # Extremely loose testing here. Just want to be sure for now that we're getting results of some kind.
     # We'll test for validity over on the hQuery Gateway side of things.
@@ -189,4 +199,17 @@ class HqmfJavascriptTest < Test::Unit::TestCase
     assert map_reduce[:functions].include? 'atLeastOneTrue'
     assert map_reduce[:functions].include? 'OidDictionary'
   end
+  
+  
+  def test_missing_id
+    
+    context = HQMF2JS::Generator::ErbContext.new({})
+    criteria = HQMF::DataCriteria.new(nil,nil,nil,nil,nil,nil,nil,'patient_characteristic',nil,nil,nil,nil,nil,nil,nil,nil,nil,nil,nil)
+    
+    exception = assert_raise RuntimeError do
+      n = context.js_name(criteria)
+    end
+    assert exception.message.match(/^No identifier for .*/)
+  end  
+
 end

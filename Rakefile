@@ -4,17 +4,23 @@ require 'sprockets'
 require 'tilt'
 require 'fileutils'
 
+require_relative 'lib/hqmf2js'
+
 # Pull in any rake task defined in lib/tasks
 Dir['lib/tasks/*.rake'].sort.each do |ext|
   load ext
 end
 
-$LOAD_PATH << File.expand_path("../test",__FILE__)
 desc "Run basic tests"
-Rake::TestTask.new("test_units") { |t|
-  t.pattern = 'test/unit/*_test.rb'
+Rake::TestTask.new(:test_unit) do |t|
+  t.libs << "test"
+  t.test_files = FileList['test/**/*_test.rb']
   t.verbose = true
-  t.warning = true
-}
+  t.warning = false
+end
 
-task :default => [:test_units,'cover_me:report']
+task :test => [:test_unit] do
+  system("open coverage/index.html")
+end
+
+task :default => [:test]

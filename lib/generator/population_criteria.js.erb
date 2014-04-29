@@ -1,4 +1,9 @@
-var <%= criteria.id %> = function(patient) {
-  return <%= js_for_precondition(criteria, 0) -%>;
+hqmfjs.<%= type %> = function(patient, initialSpecificContext) {
+  population_criteria_fn = <%= js_for_precondition(criteria, 0, true) -%>;
+  if (typeof(population_criteria_fn) == 'function') {
+  	return population_criteria_fn();
+  } else {
+  	return population_criteria_fn;
+  }
 };
 

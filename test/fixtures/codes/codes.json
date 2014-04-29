@@ -1,0 +1,54 @@
+[{
+  "concepts": [
+    {
+      "code": "123A",
+      "code_system_name": "SNOMED-CT"
+    },
+    {
+      "code": "124B",
+      "code_system_name": "SNOMED-CT"
+    },
+    {
+      "code": "125C",
+      "code_system_name": "CPT"
+    },
+    {
+      "code": "126D",
+      "code_system_name": "CPT"
+    },
+    {
+      "code": "127E",
+      "code_system_name": "CPT"
+    }
+  ],
+  "display_name": "ABD-XYZ",
+  "oid": "1.2.3.4.6",
+  "version": "20130614"
+},
+{
+  "concepts": [
+    {
+      "code": "123",
+      "code_system_name": "SNOMED-CT"
+    },
+    {
+      "code": "124",
+      "code_system_name": "SNOMED-CT"
+    },
+    {
+      "code": "125",
+      "code_system_name": "SNOMED-CT"
+    },
+    {
+      "code": "126",
+      "code_system_name": "ICD-9-CM"
+    },
+    {
+      "code": "127",
+      "code_system_name": "ICD-9-CM"
+    }
+  ],
+  "display_name": "ABC-XYZ",
+  "oid": "1.2.3.4.5",
+  "version": "20130614"
+}]

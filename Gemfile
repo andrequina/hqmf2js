@@ -1,12 +1,14 @@
 source "http://rubygems.org"
 
+gem 'rails', '3.2.14'
+
 group :assets do
   gem 'sass-rails'
   gem 'coffee-rails'
-  gem 'uglifier'
 end
 
-gem "hquery-patient-api", :git => 'http://github.com/hquery/patientapi.git', :branch => 'develop'
+gem 'hquery-patient-api', '1.0.4'
+gem 'health-data-standards', :git => 'https://github.com/projectcypress/health-data-standards.git', :branch => 'master'
 
 gem 'nokogiri'
 gem 'sprockets'
@@ -17,8 +19,17 @@ gem 'rake'
 gem 'pry'
 
 group :test do
+  gem 'simplecov', :require => false
+
   gem 'minitest'
   gem 'turn', :require => false
-  gem 'cover_me', '>= 1.0.0.rc6', :platforms => :ruby
   gem 'awesome_print', :require => 'ap'
+  
+  platforms :ruby do
+    gem "therubyracer", :require => 'v8'
+  end
+  
+  platforms :jruby do
+    gem "therubyrhino"
+  end
 end
