@@ -1,0 +1,27 @@
+{
+  "title": "Inpatient Encounter",
+  "description": "Encounter, Performed: Inpatient Encounter",
+  "standard_category": "encounter",
+  "qds_data_type": "encounter",
+  "code_list_id": "2.16.840.1.113883.3.117.1.7.1.23",
+  "type": "encounters",
+  "definition": "encounter",
+  "status": "performed",
+  "hard_status": false,
+  "negation": false,
+  "specific_occurrence": "A",
+  "specific_occurrence_const": "ENCOUNTER_PERFORMED_INPATIENT_ENCOUNTER",
+  "source_data_criteria": "OccurrenceAInpatientEncounter11",
+  "field_values": {
+    "DISCHARGE_DATETIME": {
+      "type": "ANYNonNull"
+    }
+  },
+  "temporal_references": [
+    {
+      "type": "SBE",
+      "reference": "MeasurePeriod",
+      "title": "MeasurePeriod"
+    }
+  ]
+}
