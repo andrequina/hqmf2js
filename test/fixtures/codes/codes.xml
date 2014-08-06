@@ -6,6 +6,12 @@
             codeSystemVersion="3"/>
       </ConceptList>
    </ValueSet>
+   <ValueSet id="2.16.840.1.113883.3.464.1.1142" displayName="diabetes">
+      <ConceptList xml:lang="en-US">
+         <Concept code="E10.36" codeSystemName="ICD-10-CM" displayName="Type 1 diabetes mellitus with diabetic cataract" codeSystemVersion="06/2009"/>
+      </ConceptList>
+   </ValueSet>
+
    <ValueSet id="2.16.840.1.113883.3.464.1.37" displayName="diabetes">
       <ConceptList xml:lang="en-US">
          <Concept code="E10.36" codeSystemName="ICD-10-CM"
@@ -1930,6 +1936,12 @@
             codeSystemVersion="07/2009"/>
          <Concept code="53126001" codeSystemName="SNOMED-CT" codeSystem="2.16.840.1.113883.6.96"
             displayName="Poisoning by adrenal cortical steroid" codeSystemVersion="07/2009"/>
+      </ConceptList>
+   </ValueSet>
+   <ValueSet id="1.2.3.4" displayName="Made up value set used for negation reason">
+      <ConceptList xml:lang="en-US">
+         <Concept code="1234567890" codeSystemName="SNOMED-CT" codeSystem="2.16.840.1.113883.6.96" displayName="polycystic ovaries"
+            codeSystemVersion="07/2009"/>
       </ConceptList>
    </ValueSet>
 </CodeSystems>

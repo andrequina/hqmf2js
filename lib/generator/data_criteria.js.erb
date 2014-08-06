@@ -1,46 +1,47 @@
 // Measure variables
-<%- if measure_period -%>
-var MeasurePeriod = {
-  <%- if measure_period.low -%>
-  "low": <%= js_for_value(measure_period.low) %><%= ',' if measure_period.high || measure_period.width %>
-  <%- end -%>
-  <%- if measure_period.high -%>
-  "high": <%= js_for_value(measure_period.high) %><%= ',' if measure_period.width %>
-  <%- end -%>
-  <%- if measure_period.width -%>
-  "width": <%= js_for_value(measure_period.width) %>
-  <%- end -%>
-};
-<%- end -%>
+<%= js_for_measure_period(measure_period) if measure_period -%>
 <%- all_criteria.select {|c| c.type == :variable}.each do |criteria| -%>
-var <%= criteria.js_name %> = <%= js_for_value(criteria.value) %>;
+var <%=  js_name(criteria) %> = <%= js_for_value(criteria.value) %>;
 <%- end -%>
 
 // Data critera
 <%- all_criteria.select {|c| c.type != :variable}.each do |criteria| -%>
-var <%= criteria.js_name %> = function(patient) {
-  <%- if criteria.type == :characteristic -%>
-  var value = patient.<%= criteria.property %>(<%= js_for_date_bound(criteria) if criteria.property == :age %>);
-  return matchingValue(value, <%= js_for_bounds(criteria.value) %>);
+hqmfjs.<%= js_name(criteria) %> = function(patient, initialSpecificContext) {
+  <%- if criteria.type == :characteristic and !criteria.property.nil? -%>
+<%= js_for_characteristic(criteria) -%>
   <%- else -%>
-  var codes = <%= js_for_code_list(criteria) %>;
-  <%- if criteria.effective_time -%>
-  <%- startExp = js_for_value(criteria.effective_time.low) -%>
-  var start = <%= startExp %><%= '.asDate()' if startExp != 'null' %>;
-  <%- endExp = js_for_value(criteria.effective_time.high) -%>
-  var end = <%= endExp %><%= '.asDate()' if endExp != 'null' %>;
-  var events = patient.<%= criteria.section %>().match(codes, start, end);
-  <%- else -%>
-  var events = patient.<%= criteria.section %>().match(codes);
-  <%- end -%>
-  <%- if criteria.value -%>
+    <%- if criteria.type != :derived -%>
+<%= js_for_patient_data(criteria) -%>
+    <%- else # derived criteria -%>
+<%= js_for_derived_data(criteria) %>
+    <%- end -%>
+    <%- if criteria.value -%>
   events = filterEventsByValue(events, <%= js_for_bounds(criteria.value) %>);
-  <%- end -%>
-  <%- if criteria.subset_code -%>
-  events = <%= criteria.subset_code %>(events);
-  <%- end -%>
+    <%- end -%>
+    <%- if criteria.field_values.present?
+          criteria.field_values.keys.each do |field| -%>
+  events = <%= field_library_method(field) %>(events, "<%= field_method(field) %>", <%= js_for_bounds(criteria.field_values[field]) %>);
+      <%- end -%>
+    <%- end -%>
+    <%- if criteria.temporal_references and criteria.temporal_references.length > 0 -%>
+      <%- criteria.temporal_references.each do |temporal_reference| -%>
+  if (events.length > 0) events = <%= temporal_reference.type %>(events, hqmfjs.<%= temporal_reference.reference.id %>(patient)<%= ", #{js_for_bounds(temporal_reference.range)}" if temporal_reference.range %>);
+      <%- end -%>
+  if (events.length == 0) events.specificContext=hqmf.SpecificsManager.empty();
+    <%- else # no temporal refs -%>
+        <%- if criteria.specific_occurrence -%>
+  events.specificContext=new hqmf.SpecificOccurrence(Row.buildForDataCriteria(events.specific_occurrence, events))
+        <%- else -%>
+  hqmf.SpecificsManager.setIfNull(events);
+        <%- end -%>
+    <%- end -%>
+    <%- if criteria.subset_operators -%>
+      <%- criteria.subset_operators.select {|subset_operator| subset_operator.type}.each do |subset_operator| -%>
+  events = <%= subset_operator.type %>(events<%= ", #{js_for_bounds(subset_operator.value)}" if subset_operator.value %>, initialSpecificContext);
+      <%- end # each operator -%>
+    <%- end # subset operators -%>
   return events;
-  <%- end -%>
+  <%- end # non-characteristic criteria -%>
 }
 
 <%- end -%>

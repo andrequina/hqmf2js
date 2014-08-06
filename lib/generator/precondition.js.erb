@@ -1,14 +1,14 @@
 <%- if precondition.conjunction? -%>
 <%- if indent>0 -%>
-<%= "\n#{'  '*(indent+1)}#{precondition.conjunction_code}(" -%>
+<%= "\n#{'  '*(indent+1)}#{conjunction_code_for(precondition)}('#{precondition.id}', patient, initialSpecificContext," -%>
 <%- else -%>
-<%= "#{precondition.conjunction_code}(" -%>
+<%= "#{conjunction_code_for(precondition)}('#{precondition.id}', patient, initialSpecificContext," -%>
 <%- end -%>
 <%- precondition.preconditions.each_with_index do |child, index| -%>
-<%= "#{'  '*(indent+1)}#{js_for_precondition(child, indent+1)}" -%>
+<%= "#{js_for_precondition(child, indent+1, context)}" -%>
 <%= "," if index < precondition.preconditions.length-1 -%>
 <%- end -%>
 <%= "\n#{'  '*(indent+1)})" -%>
-<%- else -%>
-<%= "\n#{'  '*(indent+1)}#{precondition.reference.js_name}(patient)" -%>
+<%- else # !precondition.conjunction? -%>
+<%= " hqmfjs.#{js_name(precondition.reference)}" -%>
 <%- end -%>

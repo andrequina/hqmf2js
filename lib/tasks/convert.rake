@@ -1,35 +1,56 @@
-require_relative '../hqmf2js'
+require 'pathname'
+require 'fileutils'
 
 namespace :hqmf do
   desc 'Convert a HQMF file to JavaScript'
-  task :convert, [:file] do |t, args|
-    hqmf_contents = File.open(args.file).read
-    gen = Generator::JS.new(hqmf_contents)
+  task :convert, [:hqmf,:hqmf_version] do |t, args|
+    
+    raise "The path to the the hqmf xml must be specified" unless args.hqmf
+    
+    FileUtils.mkdir_p File.join(".","tmp",'js')
+    file = File.expand_path(args.hqmf)
+    version = args.hqmf_version || HQMF::Parser::HQMF_VERSION_1
 
-    codes = Generator::CodesToJson.new(File.expand_path("../../../test/fixtures/codes.xml", __FILE__))
-    codes_json = codes.json
-    puts "var OidDictionary = #{codes_json};"
-    
-    ctx = Sprockets::Environment.new(File.expand_path("../../..", __FILE__))
-    Tilt::CoffeeScriptTemplate.default_bare = true 
-    ctx.append_path "app/assets/javascripts"
-    hqmf_utils = ctx.find_asset('hqmf_util').to_s
-    puts hqmf_utils
-
-    puts gen.js_for_data_criteria()
-    puts gen.js_for('IPP')
-    puts gen.js_for('DENOM')
-    puts gen.js_for('NUMER')
-    puts gen.js_for('DENEXCEP')
-    
-    if defined? Rails
-      puts Rails.application.assets.find_asset('patient').to_s
-    
-      fixture_json = File.read('test/fixtures/patients/larry_vanderman.json')
-      initialize_patient = 'var numeratorPatient = new hQuery.Patient(larry);'
-      puts "var larry = #{fixture_json};"
-      puts "#{initialize_patient}"
+    filename = Pathname.new(file).basename
+    if (version == HQMF::Parser::HQMF_VERSION_1)
+      doc = HQMF::Parser::V1Parser.new.parse(File.open(file).read, version)
+    else
+      doc = HQMF::Parser::V2Parser.new.parse(File.open(file).read, version)
     end
+
+    gen = HQMF2JS::Generator::JS.new(doc)
+
+    out_file = File.join(".","tmp",'js',"#{filename}.js")
+    
+    File.open(out_file, 'w') do |f| 
+
+      f.write("// #########################\n")
+      f.write("// ##### DATA CRITERIA #####\n")
+      f.write("// #########################\n\n")
+      f.write(gen.js_for_data_criteria())      
+      
+      f.write("// #########################\n")
+      f.write("// ##### POPULATION CRITERIA #####\n")
+      f.write("// #########################\n\n")
+           
+      f.write("// INITIAL PATIENT POPULATION\n")
+      f.write(gen.js_for(HQMF::PopulationCriteria::IPP))
+      f.write("\n// DENOMINATOR\n")
+      f.write(gen.js_for(HQMF::PopulationCriteria::DENOM))
+      f.write("\n// NUMERATOR\n")
+      f.write(gen.js_for(HQMF::PopulationCriteria::NUMER))
+      f.write("\n// EXCLUSIONS\n")
+      f.write(gen.js_for(HQMF::PopulationCriteria::DENEX))
+      f.write("\n// DENOMINATOR EXCEPTIONS\n")
+      f.write(gen.js_for(HQMF::PopulationCriteria::DENEXCEP))
+      f.write("\n// MSRPOPL\n")
+      f.write(gen.js_for(HQMF::PopulationCriteria::MSRPOPL))
+      f.write("\n// OBSERV\n")
+      f.write(gen.js_for(HQMF::PopulationCriteria::OBSERV))
+    end
+    
+    puts "wrote javascript to: #{out_file}"
+    
   end
 end
     

@@ -1,0 +1,172 @@
+{
+    "title": "Pneumonia Vaccination Status for Older Adults",
+    "description": "The percentage of patients 65 years of age and older who have ever received a pneumococcal vaccine.",
+    "population_criteria": {
+        "IPP": {
+            "conjunction?": true,
+            "preconditions": [{
+                "preconditions": [{
+                    "reference": "PatientCharacteristicBirthDate",
+                    "conjunction_code": "characteristicReference"
+                }],
+                "conjunction_code": "allTrue"
+            }]
+        },
+        "DENOM": {
+            "conjunction?": true,
+            "preconditions": [{
+                "preconditions": [{
+                    "reference": "EncounterEncounterOutpatient",
+                    "conjunction_code": "encounterReference"
+                }],
+                "conjunction_code": "allTrue"
+            }]
+        },
+        "NUMER": {
+            "conjunction?": true,
+            "preconditions": [{
+                "preconditions": [{
+                    "preconditions": [{
+                        "reference": "MedicationAdministeredPneumococcalVaccineAllAges",
+                        "conjunction_code": "medicationReference"
+                    },
+                    {
+                        "reference": "ProcedurePerformedPneumococcalVaccinationAllAges",
+                        "conjunction_code": "procedureReference"
+                    }],
+                    "conjunction_code": "atLeastOneTrue"
+                }],
+                "conjunction_code": "allTrue"
+            }]
+        }
+    },
+    "data_criteria": {
+        "PatientCharacteristicBirthDate": {
+            "title": "Patient Characteristic: birth date",
+            "section": "characteristic",
+            "code_list_id": "2.16.840.1.113883.3.560.100.4",
+            "property": "age",
+            "type": "characteristic",
+            "value": {
+                "type": "IVL_PQ",
+                "low": {
+                    "type": "PQ",
+                    "unit": "a",
+                    "value": "64",
+                    "inclusive?": true
+                },
+                "high": {
+                    "type": "PQ",
+                    "unit": "a",
+                    "value": "64",
+                    "inclusive?": true
+                }
+            },
+            "effective_time": {
+                "type": "IVL_TS",
+                "high": {
+                    "type": "TS",
+                    "value": "20120101"
+                }
+            }
+        },
+        "EncounterEncounterOutpatient": {
+            "title": "Encounter: Encounter outpatient",
+            "section": "encounters",
+            "code_list_id": "2.16.840.1.113883.3.464.0001.49",
+            "type": "encounter",
+            "effective_time": {
+                "type": "IVL_TS",
+                "low": {
+                    "type": "TS",
+                    "value": "20120101"
+                },
+                "high": {
+                    "type": "TS",
+                    "value": "20121231"
+                },
+                "width": {
+                    "type": "PQ",
+                    "unit": "a",
+                    "value": "1"
+                }
+            }
+        },
+        "ProcedurePerformedPneumococcalVaccinationAllAges": {
+            "title": "Procedure, Performed: Pneumococcal Vaccination all ages",
+            "section": "procedures",
+            "code_list_id": "2.16.840.1.113883.3.464.0001.143",
+            "type": "procedure",
+            "effective_time": {
+                "type": "IVL_TS",
+                "low": {
+                    "type": "TS",
+                    "value": "20120101"
+                },
+                "high": {
+                    "type": "TS",
+                    "value": "20121231"
+                },
+                "width": {
+                    "type": "PQ",
+                    "unit": "a",
+                    "value": "1"
+                }
+            }
+        },
+        "MedicationAdministeredPneumococcalVaccineAllAges": {
+            "title": "Medication, Administered: Pneumococcal Vaccine all ages",
+            "section": "medications",
+            "code_list_id": "2.16.840.1.113883.3.464.0001.430",
+            "type": "medication",
+            "effective_time": {
+                "type": "IVL_TS",
+                "low": {
+                    "type": "TS",
+                    "value": "20120101"
+                },
+                "high": {
+                    "type": "TS",
+                    "value": "20121231"
+                },
+                "width": {
+                    "type": "PQ",
+                    "unit": "a",
+                    "value": "1"
+                }
+            }
+        },
+        "StartDate": {
+            "title": "StartDate",
+            "type": "variable",
+            "value": {
+                "type": "TS",
+                "value": "20120101"
+            }
+        },
+        "EndDate": {
+            "title": "EndDate",
+            "type": "variable",
+            "value": {
+                "type": "TS",
+                "value": "20121231"
+            }
+        }
+    },
+    "measure_period": {
+        "type": "IVL_TS",
+        "low": {
+            "type": "TS",
+            "value": "20120101"
+        },
+        "high": {
+            "type": "TS",
+            "value": "20121231"
+        },
+        "width": {
+            "type": "PQ",
+            "unit": "a",
+            "value": "1"
+        }
+    }
+}
